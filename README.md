@@ -1,6 +1,4 @@
-# Stop Crashing Your Laptop: Extract Any Point from ERA5 in Under 10 Seconds
-
-You're a metocean engineer. Your client needs wave height time series at an offshore platform location — 4°N, 108°E, Natuna Sea. Someone hands you a 40-year ERA5 global file. Your laptop has 8GB RAM. What do you do?
+# Point Extraction
 
 ## Project Structure
 
