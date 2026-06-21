@@ -11,3 +11,13 @@
 *.xlsx
 *.pptx
 *.ppt
+
+# Large NetCDF files — download via GitHub Release or scripts/download_era5.py
+data/era5_sample.nc
+data/era5_benchmark_10yr.nc
+
+# Commit pre-computed benchmark charts and data docs images
+!data/benchmark/
+!data/benchmark/*.csv
+!data/benchmark/*.png
+!data/download_area.png

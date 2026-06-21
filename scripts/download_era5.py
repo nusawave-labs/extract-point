@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import shutil
 import sys
+import zipfile
 from pathlib import Path
 
 DATASET = "reanalysis-era5-single-levels"
@@ -30,13 +31,17 @@ DATASET = "reanalysis-era5-single-levels"
 VARIABLES = {
     "significant_height_of_combined_wind_waves_and_swell": "swh",
     "peak_wave_period": "tp",
+    "mean_wave_direction": "mwd",
+    "significant_height_of_total_swell": "shts",
+    "mean_direction_of_total_swell": "mdts",
+    "mean_period_of_total_swell": "mpts",
     "10m_u_component_of_wind": "u10",
     "10m_v_component_of_wind": "v10",
 }
 
 DEFAULT_LAT = 4.0
 DEFAULT_LON = 108.0
-DEFAULT_YEARS = 5
+DEFAULT_YEARS = 1
 DEFAULT_END_YEAR = 2024
 DEFAULT_MONTH = "all"  # all months per year
 DEFAULT_GRID_POINTS = 20  # 20 × 20 cells at 0.5° resolution
@@ -163,6 +168,9 @@ def normalize_dataset(ds_or_path):
     if rename_vars:
         ds = ds.rename(rename_vars)
 
+    if "pp1d" in ds.data_vars and "tp" not in ds.data_vars:
+        ds = ds.rename({"pp1d": "tp"})
+
     if "valid_time" in ds.dims:
         ds = ds.rename({"valid_time": "time"})
 
@@ -190,6 +198,42 @@ def retrieve_month(
         months=[month],
     )
     client.retrieve(DATASET, request, str(target))
+    ensure_netcdf(target)
+
+
+def ensure_netcdf(path: Path) -> Path:
+    """CDS often delivers a zip with multiple NetCDF streams (wind, waves, etc.)."""
+    import tempfile
+
+    import xarray as xr
+
+    with path.open("rb") as handle:
+        if handle.read(2) != b"PK":
+            return path
+
+    with zipfile.ZipFile(path) as archive, tempfile.TemporaryDirectory() as tmp:
+        nc_names = [name for name in archive.namelist() if name.endswith(".nc")]
+        if not nc_names:
+            raise ValueError(f"No NetCDF file found inside CDS archive: {path}")
+
+        tmp_path = Path(tmp)
+        datasets = []
+        for name in nc_names:
+            extracted = tmp_path / Path(name).name
+            archive.extract(name, tmp)
+            datasets.append(xr.open_dataset(extracted))
+
+        merged = xr.merge(datasets, compat="override")
+        for ds in datasets:
+            ds.close()
+
+        temp_out = path.with_suffix(".merged.nc")
+        merged.to_netcdf(temp_out)
+        merged.close()
+
+    path.unlink()
+    temp_out.rename(path)
+    return path
 
 
 def download(
@@ -331,6 +375,16 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Submit even if estimated size exceeds CDS-friendly limit",
     )
+    parser.add_argument(
+        "--sample",
+        action="store_true",
+        help="Quick download: 1 month, 5×5 grid — ideal for testing (< 5 MB)",
+    )
+    parser.add_argument(
+        "--benchmark",
+        action="store_true",
+        help="Large maintainer benchmark file: 10 yr, 20×20 grid → data/era5_benchmark_10yr.nc",
+    )
     return parser.parse_args()
 
 
@@ -338,13 +392,26 @@ def main() -> None:
     args = parse_args()
     check_credentials()
 
-    months = month_list() if args.month == "all" else [args.month.zfill(2)]
-    buffer_deg = args.buffer_deg if args.buffer_deg is not None else buffer_for_grid(args.grid)
-
-    if args.year:
-        years = [args.year]
-    else:
+    if args.benchmark:
+        args.output = Path("data/era5_benchmark_10yr.nc")
+        args.years = 10
+        args.grid = DEFAULT_GRID_POINTS
+        args.force = True
         years = year_range(args.end_year, args.years)
+        months = month_list()
+        buffer_deg = buffer_for_grid(args.grid)
+    elif args.sample:
+        years = [str(DEFAULT_END_YEAR)]
+        months = ["01"]
+        buffer_deg = buffer_for_grid(5)
+    else:
+        months = month_list() if args.month == "all" else [args.month.zfill(2)]
+        buffer_deg = args.buffer_deg if args.buffer_deg is not None else buffer_for_grid(args.grid)
+
+        if args.year:
+            years = [args.year]
+        else:
+            years = year_range(args.end_year, args.years)
 
     download(
         args.output,

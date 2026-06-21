@@ -1,0 +1,7 @@
+# Minimal deps for the Colab tutorial (no cartopy/cdsapi — those are maintainer scripts only)
+xarray>=2024.6.0
+netCDF4>=1.6.0
+dask>=2024.6.0
+pandas>=2.2.0
+numpy>=1.26.0
+matplotlib>=3.8.0
