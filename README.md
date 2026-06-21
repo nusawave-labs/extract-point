@@ -5,11 +5,7 @@
 
 ## Quick Start (Google Colab)
 
-<a href="https://nusawave-labs.github.io/extract-point/colab.html">
-  <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab" />
-</a>
-
-Opens Colab in a **new tab**.
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/nusawave-labs/extract-point/blob/main/notebooks/extract_point.ipynb)
 
 1. Click **Open in Colab** above
 2. **Runtime → Run all** (or run the first cell, then Run all)
